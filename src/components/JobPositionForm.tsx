@@ -3,25 +3,22 @@ import { Briefcase, ListChecks, MapPin, PenTool as Tool, FlaskRound as Flask, Al
 import { JobInfo } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
 
-interface JobPositionFormProps {
-  initialData: JobInfo;
-  onSubmit: (data: JobInfo) => void;
-  onBack: () => void;
-}
+// Basic sanitization utility to prevent simple XSS by replacing HTML special characters.
+// IMPORTANT: This is a basic client-side sanitization measure.
+// Robust server-side validation and sanitization are crucial for security.
+const sanitizeInput = (str: string): string => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;') // Optional: also sanitize single quotes
+    .replace(/\//g, '&#x2F;'); // Optional: also sanitize forward slashes
+};
 
-const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit, onBack }) => {
-  const [formData, setFormData] = useState<JobInfo>(initialData);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+const JOB_DESCRIPTION_PROMPT_TEMPLATE = (position: string) => `User-provided position: "${position}"
 
-  const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const position = e.target.value;
-    setFormData(prev => ({ ...prev, position }));
-  };
-
-  const handleSuggest = async () => {
-    setIsLoadingSuggestions(true);
-    try {
-      const prompt = `Create a detailed job description for the position "${formData.position}" including the following sections:
+Based on the user-provided position above, create a detailed job description including the following sections:
 - Main Tasks
 - Work Environment
 - Equipment, Machinery, and Tools
@@ -50,7 +47,7 @@ The response should be a JSON object with the following structure:
 **Example 1**
 
 **Input:**
-"${formData.position}": "Software Developer"
+User-provided position: "Software Developer"
 
 **Output:**
 \`\`\`json
@@ -68,6 +65,32 @@ The response should be a JSON object with the following structure:
 # Notes
 
 Consider edge cases, such as when information for a certain section is unavailable or not applicable, and how to properly reflect that in the JSON output."`;
+
+interface JobPositionFormProps {
+  initialData: JobInfo;
+  onSubmit: (data: JobInfo) => void;
+  onBack: () => void;
+}
+
+const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit, onBack }) => {
+  const [formData, setFormData] = useState<JobInfo>(initialData);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+  const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Also sanitize position input, as it's used in prompts.
+    // While prompt delineation helps, sanitizing user input adds another layer of safety.
+    const position = sanitizeInput(e.target.value);
+    setFormData(prev => ({ ...prev, position }));
+  };
+
+  const handleSuggest = async () => {
+    setIsLoadingSuggestions(true);
+    try {
+      // WARNING: When incorporating user-supplied data into prompts,
+      // always be mindful of prompt injection vulnerabilities.
+      // Treat user input as data, not as instructions.
+      // Clearly delineate user input from the instructional parts of the prompt.
+      const prompt = JOB_DESCRIPTION_PROMPT_TEMPLATE(formData.position);
 
       const aiResponse = await getAIRecommendations(prompt);
       let parsedResponse;
@@ -98,6 +121,7 @@ Consider edge cases, such as when information for a certain section is unavailab
       }));
     } catch (error) {
       console.error('Error generating AI suggestions:', error);
+      // TODO: Consider replacing alert() with a more integrated UI feedback mechanism (e.g., toast notification)
       alert('Error al generar sugerencias de IA. Por favor, inténtelo de nuevo.');
     } finally {
       setIsLoadingSuggestions(false);
@@ -105,8 +129,12 @@ Consider edge cases, such as when information for a certain section is unavailab
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    // Apply sanitization for text and textarea inputs.
+    // IMPORTANT: This client-side sanitization is a first line of defense,
+    // but comprehensive server-side validation and sanitization are essential.
+    const sanitizedValue = (type === 'text' || type === 'textarea') ? sanitizeInput(value) : value;
+    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {

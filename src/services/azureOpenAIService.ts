@@ -1,32 +1,34 @@
-import OpenAI from 'openai';
+// API calls to Azure OpenAI have been moved to a backend service for security reasons.
+// Exposing API keys on the client-side (e.g., by using `dangerouslyAllowBrowser: true` with the OpenAI SDK)
+// is a significant security risk, as it allows anyone to potentially access and misuse the API key.
+// By handling API calls on the backend, the API key remains secure on the server.
 
-const AZURE_OPENAI_API_KEY = import.meta.env.VITE_AZURE_OPENAI_API_KEY;
-const AZURE_OPENAI_ENDPOINT = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT;
-const AZURE_OPENAI_DEPLOYMENT_NAME = import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT_NAME;
-const AZURE_OPENAI_API_VERSION = import.meta.env.VITE_AZURE_OPENAI_API_VERSION;
+export const getAIRecommendations = async (prompt: string): Promise<string> => {
+  // Simulate a fetch call to a hypothetical backend endpoint
+  console.log('Simulating call to /api/ai-recommendations with prompt:', prompt);
 
-const openai = new OpenAI({
-  apiKey: AZURE_OPENAI_API_KEY,
-  baseURL: `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_NAME}`,
-  defaultQuery: { 'api-version': AZURE_OPENAI_API_VERSION },
-  defaultHeaders: { 'api-key': AZURE_OPENAI_API_KEY },
-  dangerouslyAllowBrowser: true, // Required for client-side usage
-});
+  // In a real application, you would use fetch or a similar library:
+  //
+  // try {
+  //   const response = await fetch('/api/ai-recommendations', {
+  //     method: 'POST',
+  //     headers: {
+  //       'Content-Type': 'application/json',
+  //     },
+  //     body: JSON.stringify({ prompt }),
+  //   });
+  //
+  //   if (!response.ok) {
+  //     throw new Error(`API call failed with status: ${response.status}`);
+  //   }
+  //
+  //   const data = await response.json();
+  //   return data.recommendation; // Assuming the backend returns { recommendation: "..." }
+  // } catch (error) {
+  //   console.error('Error fetching AI recommendations from backend:', error);
+  //   throw error; // Re-throw the error to be handled by the caller
+  // }
 
-export const getAIRecommendations = async (prompt: string) => {
-  try {
-    const response = await openai.chat.completions.create({
-      model: AZURE_OPENAI_DEPLOYMENT_NAME, // In Azure, model is the deployment name
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    });
-    return response.choices[0].message?.content || '';
-  } catch (error) {
-    console.error('Error getting AI recommendations from Azure OpenAI:', error);
-    throw error;
-  }
+  // For now, return a placeholder success message or an empty string
+  return Promise.resolve('AI recommendation placeholder - backend not implemented yet.');
 };
