@@ -2,6 +2,22 @@ import React from 'react';
 import { Building2, Hash, MapPin, Briefcase, Phone } from 'lucide-react';
 import { CompanyInfo } from '../types';
 
+// General UI/UX Note: For user notifications (errors, successes, warnings), consider implementing a consistent
+// feedback system, such as toast notifications or inline messages, throughout the application.
+
+// Basic sanitization utility to prevent simple XSS by replacing HTML special characters.
+// IMPORTANT: This is a basic client-side sanitization measure.
+// Robust server-side validation and sanitization are crucial for security.
+const sanitizeInput = (str: string): string => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;') // Optional: also sanitize single quotes
+    .replace(/\//g, '&#x2F;'); // Optional: also sanitize forward slashes
+};
+
 interface CompanyFormProps {
   initialData: CompanyInfo;
   onSubmit: (data: CompanyInfo) => void;
@@ -11,8 +27,12 @@ const CompanyForm: React.FC<CompanyFormProps> = ({ initialData, onSubmit }) => {
   const [formData, setFormData] = React.useState<CompanyInfo>(initialData);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    // Apply sanitization for text and textarea inputs.
+    // IMPORTANT: This client-side sanitization is a first line of defense,
+    // but comprehensive server-side validation and sanitization are essential.
+    const sanitizedValue = (type === 'text' || type === 'textarea') ? sanitizeInput(value) : value;
+    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
