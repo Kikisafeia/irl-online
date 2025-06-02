@@ -12,6 +12,7 @@ interface JobPositionFormProps {
 const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit, onBack }) => {
   const [formData, setFormData] = useState<JobInfo>(initialData);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const position = e.target.value;
@@ -20,6 +21,7 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
 
   const handleSuggest = async () => {
     setIsLoadingSuggestions(true);
+    setAiError(null); // Reset error before new suggestion
     try {
       const prompt = 
         'Create a detailed job description for the position "' + formData.position + '" including the following sections:\n' +
@@ -67,19 +69,48 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
       const aiResponse = await getAIRecommendations(prompt);
       let parsedResponse;
       let jsonString = aiResponse; // Default to full response
+      let parseErrorOccurred = false;
 
-      // Attempt to extract JSON string from markdown code block
+      // Attempt 1: Extract JSON string from markdown code block
       const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonString = jsonMatch[1];
+        try {
+          parsedResponse = JSON.parse(jsonString);
+          console.log('Successfully parsed JSON from markdown block.');
+        } catch (markdownParseError) {
+          console.error('Failed to parse JSON from markdown block. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
+          parseErrorOccurred = true;
+        }
+      } else {
+        console.warn('Markdown JSON block not found. Will attempt to parse from curly braces.');
+        parseErrorOccurred = true; // Proceed to next attempt
       }
 
-      try {
-        parsedResponse = JSON.parse(jsonString);
-      } catch (parseError) {
-        console.error('Failed to parse JSON. Raw AI response:', aiResponse);
-        console.error('Attempted JSON string:', jsonString);
-        throw parseError; // Re-throw to be caught by outer catch block
+      // Attempt 2: Find first '{' and last '}'
+      if (parseErrorOccurred || !parsedResponse) {
+        parseErrorOccurred = false; // Reset for this attempt
+        const firstBrace = aiResponse.indexOf('{');
+        const lastBrace = aiResponse.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = aiResponse.substring(firstBrace, lastBrace + 1);
+          try {
+            parsedResponse = JSON.parse(jsonString);
+            console.log('Successfully parsed JSON from first/last curly braces.');
+          } catch (braceParseError) {
+            console.error('Failed to parse JSON from first/last curly braces. Attempted JSON string:', jsonString, 'Error:', braceParseError);
+            parseErrorOccurred = true;
+          }
+        } else {
+          console.warn('Could not find valid first and last curly braces for JSON extraction.');
+          parseErrorOccurred = true;
+        }
+      }
+
+      if (parseErrorOccurred || !parsedResponse) {
+        console.error('All JSON parsing attempts failed. Raw AI response:', aiResponse);
+        // Keep the original error throwing logic or decide on a new one
+        throw new Error('Failed to parse JSON from AI response after multiple attempts.');
       }
 
       setFormData(prev => ({
@@ -93,7 +124,7 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
       }));
     } catch (error) {
       console.error('Error generating AI suggestions:', error);
-      alert('Error al generar sugerencias de IA. Por favor, inténtelo de nuevo.');
+      setAiError("No se pudieron generar sugerencias. Intente ajustar el cargo o inténtelo de nuevo más tarde.");
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -146,6 +177,9 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
               >
                 {isLoadingSuggestions ? 'Generando sugerencias...' : 'Sugerir contenido para este cargo'}
               </button>
+            )}
+            {aiError && (
+              <p className="mt-2 text-sm text-red-600">{aiError}</p>
             )}
           </div>
 

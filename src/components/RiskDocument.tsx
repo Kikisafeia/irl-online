@@ -17,31 +17,32 @@ const RiskDocument: React.FC<RiskDocumentProps> = ({
   onReset
 }) => {
   const currentDate = new Date().toLocaleDateString('es-CL');
-  const [aiProtocols, setAiProtocols] = useState<Protocol[]>([]);
-  const [isLoadingAiProtocols, setIsLoadingAiProtocols] = useState(false);
-  const [errorAiProtocols, setErrorAiProtocols] = useState<string | null>(null);
 
-  const [aiRisks, setAiRisks] = useState<RiskCategory[]>([]);
-  const [isLoadingAiRisks, setIsLoadingAiRisks] = useState(false);
-  const [errorAiRisks, setErrorAiRisks] = useState<string | null>(null);
+  interface AIFetchState<T> {
+    data: T | null;
+    isLoading: boolean;
+    error: string | null;
+  }
 
-  const [aiEpp, setAiEpp] = useState<string[]>([]);
-  const [isLoadingAiEpp, setIsLoadingAiEpp] = useState(false);
-  const [errorAiEpp, setErrorAiEpp] = useState<string | null>(null);
+  interface RiskDocumentAIState {
+    protocols: AIFetchState<Protocol[]>;
+    risks: AIFetchState<RiskCategory[]>;
+    epp: AIFetchState<string[]>;
+    specialConditions: AIFetchState<string>;
+    additionalInfo: AIFetchState<string>;
+  }
 
-  const [aiSpecialConditions, setAiSpecialConditions] = useState<string>('');
-  const [isLoadingAiSpecialConditions, setIsLoadingAiSpecialConditions] = useState(false);
-  const [errorAiSpecialConditions, setErrorAiSpecialConditions] = useState<string | null>(null);
-
-  const [aiAdditionalInfo, setAiAdditionalInfo] = useState<string>('');
-  const [isLoadingAiAdditionalInfo, setIsLoadingAiAdditionalInfo] = useState(false);
-  const [errorAiAdditionalInfo, setErrorAiAdditionalInfo] = useState<string | null>(null);
-
+  const [aiData, setAiData] = useState<RiskDocumentAIState>({
+    protocols: { data: [], isLoading: false, error: null },
+    risks: { data: [], isLoading: false, error: null },
+    epp: { data: [], isLoading: false, error: null },
+    specialConditions: { data: '', isLoading: false, error: null },
+    additionalInfo: { data: '', isLoading: false, error: null },
+  });
 
   useEffect(() => {
     const fetchAiProtocols = async () => {
-      setIsLoadingAiProtocols(true);
-      setErrorAiProtocols(null);
+      setAiData(prev => ({ ...prev, protocols: { ...prev.protocols, isLoading: true, error: null } }));
       try {
         const prompt = `Genera una lista de protocolos de vigilancia del MINSAL de Chile relevantes para un puesto de trabajo con las siguientes características:
 Cargo: ${jobInfo.position}
@@ -52,7 +53,7 @@ Materiales: ${jobInfo.materials}
 Condiciones Especiales: ${jobInfo.specialConditions}
 Información Adicional: ${jobInfo.additionalInfo}
 
-Formatea la respuesta como un array JSON VÁLIDO de objetos, donde cada objeto tenga las propiedades "name" (nombre del protocolo), "description" (una breve descripción) y "applicable" (siempre true). Incluye solo protocolos reales y relevantes del MINSAL de Chile.
+Formatea la respuesta como un array JSON VÁLIDO de objetos, donde cada objeto tenga las propiedades "name" (nombre del protocolo), "description" (una breve descripción), "applicable" (siempre true), y "url" (la URL al documento oficial del MINSAL si está disponible, de lo contrario omitir o usar string vacío). Incluye solo protocolos reales y relevantes del MINSAL de Chile.
 
 Ejemplo de formato:
 \`\`\`json
@@ -60,11 +61,18 @@ Ejemplo de formato:
   {
     "name": "Protocolo PREXOR",
     "description": "Protocolo de Exposición Ocupacional a Ruido.",
-    "applicable": true
+    "applicable": true,
+    "url": "https://www.minsal.cl/portal/url/item/75f75393a1871a75e04001016501542c.pdf"
   },
   {
     "name": "Protocolo TMERT",
     "description": "Protocolo de Vigilancia de Trastornos Musculoesqueléticos relacionados con el Trabajo.",
+    "applicable": true,
+    "url": "https://www.minsal.cl/portal/url/item/75f75393a1871a75e04001016501542d.pdf"
+  },
+  {
+    "name": "Protocolo Desconocido Sin URL",
+    "description": "Ejemplo de protocolo sin URL disponible.",
     "applicable": true
   }
 ]
@@ -73,35 +81,64 @@ Ejemplo de formato:
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
         let jsonString = aiResponse;
+        let parseErrorOccurred = false;
 
+        // Attempt 1: Extract JSON string from markdown code block
         const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch && jsonMatch[1]) {
           jsonString = jsonMatch[1];
+          try {
+            parsedResponse = JSON.parse(jsonString);
+            console.log('Successfully parsed JSON from markdown block for AI protocols.');
+          } catch (markdownParseError) {
+            console.error('Failed to parse JSON from markdown block for AI protocols. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
+            parseErrorOccurred = true;
+          }
+        } else {
+          console.warn('Markdown JSON block not found for AI protocols. Will attempt to parse from brackets.');
+          parseErrorOccurred = true; // Proceed to next attempt
         }
 
-        try {
-          parsedResponse = JSON.parse(jsonString);
-          if (Array.isArray(parsedResponse)) {
-            setAiProtocols(parsedResponse);
+        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
+        if (parseErrorOccurred || !parsedResponse) {
+          parseErrorOccurred = false; // Reset for this attempt
+          const firstBracket = aiResponse.indexOf('[');
+          const lastBracket = aiResponse.lastIndexOf(']');
+          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
+            try {
+              parsedResponse = JSON.parse(jsonString);
+              console.log('Successfully parsed JSON for AI protocols from first/last brackets.');
+            } catch (bracketParseError) {
+              console.error('Failed to parse JSON for AI protocols from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
+              parseErrorOccurred = true;
+            }
           } else {
-            throw new Error("La respuesta de la IA no es un array JSON válido.");
+            console.warn('Could not find valid first and last brackets for AI protocols JSON extraction.');
+            parseErrorOccurred = true;
           }
-        } catch (parseError) {
-          console.error('Failed to parse JSON. Raw AI response:', aiResponse);
-          console.error('Attempted JSON string:', jsonString);
-          throw parseError;
+        }
+
+        if (parseErrorOccurred || !parsedResponse) {
+          console.error('All JSON parsing attempts failed for AI protocols. Raw AI response:', aiResponse);
+          throw new Error('Failed to parse JSON for AI protocols from AI response after multiple attempts.');
+        }
+
+        if (Array.isArray(parsedResponse)) {
+          setAiData(prev => ({ ...prev, protocols: { data: parsedResponse, isLoading: false, error: null } }));
+        } else {
+          console.error('Parsed data for AI protocols is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
+          throw new Error("La respuesta de la IA no es un array JSON válido para protocolos.");
         }
       } catch (err) {
-        console.error('Error generating AI protocols:', err);
-        setErrorAiProtocols('Error al generar protocolos de IA. Por favor, inténtelo de nuevo.');
-      } finally {
-        setIsLoadingAiProtocols(false);
+        const errorMessage = err instanceof Error ? err.message : 'Error al generar protocolos de IA. Por favor, inténtelo de nuevo.';
+        console.error('Error generating or parsing AI protocols:', err);
+        setAiData(prev => ({ ...prev, protocols: { ...prev.protocols, isLoading: false, error: errorMessage } }));
       }
     };
 
     const fetchAiRisks = async () => {
-      setIsLoadingAiRisks(true);
-      setErrorAiRisks(null);
+      setAiData(prev => ({ ...prev, risks: { ...prev.risks, isLoading: true, error: null } }));
       try {
         const prompt = `Genera una lista de peligros y factores de riesgo relevantes para un puesto de trabajo con las siguientes características:
 Cargo: ${jobInfo.position}
@@ -133,35 +170,64 @@ Ejemplo de formato:
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
         let jsonString = aiResponse;
+        let parseErrorOccurred = false;
 
+        // Attempt 1: Extract JSON string from markdown code block
         const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch && jsonMatch[1]) {
           jsonString = jsonMatch[1];
+          try {
+            parsedResponse = JSON.parse(jsonString);
+            console.log('Successfully parsed JSON from markdown block for AI risks.');
+          } catch (markdownParseError) {
+            console.error('Failed to parse JSON from markdown block for AI risks. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
+            parseErrorOccurred = true;
+          }
+        } else {
+          console.warn('Markdown JSON block not found for AI risks. Will attempt to parse from brackets.');
+          parseErrorOccurred = true; // Proceed to next attempt
         }
 
-        try {
-          parsedResponse = JSON.parse(jsonString);
-          if (Array.isArray(parsedResponse)) {
-            setAiRisks(parsedResponse);
+        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
+        if (parseErrorOccurred || !parsedResponse) {
+          parseErrorOccurred = false; // Reset for this attempt
+          const firstBracket = aiResponse.indexOf('[');
+          const lastBracket = aiResponse.lastIndexOf(']');
+          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
+            try {
+              parsedResponse = JSON.parse(jsonString);
+              console.log('Successfully parsed JSON for AI risks from first/last brackets.');
+            } catch (bracketParseError) {
+              console.error('Failed to parse JSON for AI risks from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
+              parseErrorOccurred = true;
+            }
           } else {
-            throw new Error("La respuesta de la IA no es un array JSON válido para riesgos.");
+            console.warn('Could not find valid first and last brackets for AI risks JSON extraction.');
+            parseErrorOccurred = true;
           }
-        } catch (parseError) {
-          console.error('Failed to parse JSON for risks. Raw AI response:', aiResponse);
-          console.error('Attempted JSON string:', jsonString);
-          throw parseError;
+        }
+
+        if (parseErrorOccurred || !parsedResponse) {
+          console.error('All JSON parsing attempts failed for AI risks. Raw AI response:', aiResponse);
+          throw new Error('Failed to parse JSON for AI risks from AI response after multiple attempts.');
+        }
+
+        if (Array.isArray(parsedResponse)) {
+          setAiData(prev => ({ ...prev, risks: { data: parsedResponse, isLoading: false, error: null } }));
+        } else {
+          console.error('Parsed data for AI risks is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
+          throw new Error("La respuesta de la IA no es un array JSON válido para riesgos.");
         }
       } catch (err) {
-        console.error('Error generating AI risks:', err);
-        setErrorAiRisks('Error al generar riesgos de IA. Por favor, inténtelo de nuevo.');
-      } finally {
-        setIsLoadingAiRisks(false);
+        const errorMessage = err instanceof Error ? err.message : 'Error al generar riesgos de IA. Por favor, inténtelo de nuevo.';
+        console.error('Error generating or parsing AI risks:', err);
+        setAiData(prev => ({ ...prev, risks: { ...prev.risks, isLoading: false, error: errorMessage } }));
       }
     };
 
     const fetchAiEpp = async () => {
-      setIsLoadingAiEpp(true);
-      setErrorAiEpp(null);
+      setAiData(prev => ({ ...prev, epp: { ...prev.epp, isLoading: true, error: null } }));
       try {
         const prompt = `Genera una lista de Elementos de Protección Personal (EPP) específicos y generales relevantes para un puesto de trabajo con las siguientes características:
 Cargo: ${jobInfo.position}
@@ -187,35 +253,64 @@ Ejemplo de formato:
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
         let jsonString = aiResponse;
+        let parseErrorOccurred = false;
 
+        // Attempt 1: Extract JSON string from markdown code block
         const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch && jsonMatch[1]) {
           jsonString = jsonMatch[1];
+          try {
+            parsedResponse = JSON.parse(jsonString);
+            console.log('Successfully parsed JSON from markdown block for AI EPP.');
+          } catch (markdownParseError) {
+            console.error('Failed to parse JSON from markdown block for AI EPP. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
+            parseErrorOccurred = true;
+          }
+        } else {
+          console.warn('Markdown JSON block not found for AI EPP. Will attempt to parse from brackets.');
+          parseErrorOccurred = true; // Proceed to next attempt
         }
 
-        try {
-          parsedResponse = JSON.parse(jsonString);
-          if (Array.isArray(parsedResponse) && parsedResponse.every(item => typeof item === 'string')) {
-            setAiEpp(parsedResponse);
+        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
+        if (parseErrorOccurred || !parsedResponse) {
+          parseErrorOccurred = false; // Reset for this attempt
+          const firstBracket = aiResponse.indexOf('[');
+          const lastBracket = aiResponse.lastIndexOf(']');
+          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
+            try {
+              parsedResponse = JSON.parse(jsonString);
+              console.log('Successfully parsed JSON for AI EPP from first/last brackets.');
+            } catch (bracketParseError) {
+              console.error('Failed to parse JSON for AI EPP from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
+              parseErrorOccurred = true;
+            }
           } else {
-            throw new Error("La respuesta de la IA no es un array JSON válido de strings para EPP.");
+            console.warn('Could not find valid first and last brackets for AI EPP JSON extraction.');
+            parseErrorOccurred = true;
           }
-        } catch (parseError) {
-          console.error('Failed to parse JSON for EPP. Raw AI response:', aiResponse);
-          console.error('Attempted JSON string:', jsonString);
-          throw parseError;
+        }
+
+        if (parseErrorOccurred || !parsedResponse) {
+          console.error('All JSON parsing attempts failed for AI EPP. Raw AI response:', aiResponse);
+          throw new Error('Failed to parse JSON for AI EPP from AI response after multiple attempts.');
+        }
+
+        if (Array.isArray(parsedResponse) && parsedResponse.every(item => typeof item === 'string')) {
+          setAiData(prev => ({ ...prev, epp: { data: parsedResponse, isLoading: false, error: null } }));
+        } else {
+          console.error('Parsed data for AI EPP is not a valid array of strings. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
+          throw new Error("La respuesta de la IA no es un array JSON válido de strings para EPP.");
         }
       } catch (err) {
-        console.error('Error generating AI EPP:', err);
-        setErrorAiEpp('Error al generar EPP de IA. Por favor, inténtelo de nuevo.');
-      } finally {
-        setIsLoadingAiEpp(false);
+        const errorMessage = err instanceof Error ? err.message : 'Error al generar EPP de IA. Por favor, inténtelo de nuevo.';
+        console.error('Error generating or parsing AI EPP:', err);
+        setAiData(prev => ({ ...prev, epp: { ...prev.epp, isLoading: false, error: errorMessage } }));
       }
     };
 
     const fetchAiSpecialConditions = async () => {
-      setIsLoadingAiSpecialConditions(true);
-      setErrorAiSpecialConditions(null);
+      setAiData(prev => ({ ...prev, specialConditions: { ...prev.specialConditions, isLoading: true, error: null } }));
       try {
         const prompt = `Genera una descripción de las condiciones especiales relevantes para un puesto de trabajo con las siguientes características:
 Cargo: ${jobInfo.position}
@@ -228,18 +323,16 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay condiciones especiales, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiSpecialConditions(aiResponse);
+        setAiData(prev => ({ ...prev, specialConditions: { data: aiResponse, isLoading: false, error: null } }));
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al generar condiciones especiales de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI special conditions:', err);
-        setErrorAiSpecialConditions('Error al generar condiciones especiales de IA. Por favor, inténtelo de nuevo.');
-      } finally {
-        setIsLoadingAiSpecialConditions(false);
+        setAiData(prev => ({ ...prev, specialConditions: { ...prev.specialConditions, isLoading: false, error: errorMessage } }));
       }
     };
 
     const fetchAiAdditionalInfo = async () => {
-      setIsLoadingAiAdditionalInfo(true);
-      setErrorAiAdditionalInfo(null);
+      setAiData(prev => ({ ...prev, additionalInfo: { ...prev.additionalInfo, isLoading: true, error: null } }));
       try {
         const prompt = `Genera información adicional relevante para un puesto de trabajo con las siguientes características:
 Cargo: ${jobInfo.position}
@@ -252,12 +345,11 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay información adicional, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiAdditionalInfo(aiResponse);
+        setAiData(prev => ({ ...prev, additionalInfo: { data: aiResponse, isLoading: false, error: null } }));
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al generar información adicional de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI additional info:', err);
-        setErrorAiAdditionalInfo('Error al generar información adicional de IA. Por favor, inténtelo de nuevo.');
-      } finally {
-        setIsLoadingAiAdditionalInfo(false);
+        setAiData(prev => ({ ...prev, additionalInfo: { ...prev.additionalInfo, isLoading: false, error: errorMessage } }));
       }
     };
 
@@ -319,46 +411,45 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
   const [editableRisks, setEditableRisks] = useState<RiskCategory[]>([]);
 
   useEffect(() => {
-    // Inicializar riesgos editables con los generados por IA una vez que estén disponibles
-    if (!isLoadingAiRisks) {
-      setEditableRisks(aiRisks);
+    if (!aiData.risks.isLoading) {
+      setEditableRisks(aiData.risks.data || []);
     }
-  }, [aiRisks, isLoadingAiRisks]);
+  }, [aiData.risks.data, aiData.risks.isLoading]);
 
   // Combinar protocolos estáticos y generados por IA para la edición
   const [editableProtocols, setEditableProtocols] = useState<Protocol[]>([]);
 
   useEffect(() => {
-    // Inicializar protocolos editables con los estáticos y los de IA una vez que ambos estén disponibles
-    if (!isLoadingAiProtocols) {
-      const combinedProtocols = [...staticProtocols, ...aiProtocols];
+    if (!aiData.protocols.isLoading) {
+      const aiProtocolsData = aiData.protocols.data || [];
+      const combinedProtocols = [...staticProtocols, ...aiProtocolsData];
       setEditableProtocols(combinedProtocols);
     }
-  }, [staticProtocols, aiProtocols, isLoadingAiProtocols]);
+  }, [staticProtocols, aiData.protocols.data, aiData.protocols.isLoading]);
 
   const [editableEpp, setEditableEpp] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!isLoadingAiEpp) {
-      setEditableEpp(aiEpp);
+    if (!aiData.epp.isLoading) {
+      setEditableEpp(aiData.epp.data || []);
     }
-  }, [aiEpp, isLoadingAiEpp]);
+  }, [aiData.epp.data, aiData.epp.isLoading]);
 
   const [editableSpecialConditions, setEditableSpecialConditions] = useState<string>('');
 
   useEffect(() => {
-    if (!isLoadingAiSpecialConditions) {
-      setEditableSpecialConditions(aiSpecialConditions);
+    if (!aiData.specialConditions.isLoading) {
+      setEditableSpecialConditions(aiData.specialConditions.data || '');
     }
-  }, [aiSpecialConditions, isLoadingAiSpecialConditions]);
+  }, [aiData.specialConditions.data, aiData.specialConditions.isLoading]);
 
   const [editableAdditionalInfo, setEditableAdditionalInfo] = useState<string>('');
 
   useEffect(() => {
-    if (!isLoadingAiAdditionalInfo) {
-      setEditableAdditionalInfo(aiAdditionalInfo);
+    if (!aiData.additionalInfo.isLoading) {
+      setEditableAdditionalInfo(aiData.additionalInfo.data || '');
     }
-  }, [aiAdditionalInfo, isLoadingAiAdditionalInfo]);
+  }, [aiData.additionalInfo.data, aiData.additionalInfo.isLoading]);
 
 
   return (
@@ -448,20 +539,20 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
           Identificación de Peligros y Factores de Riesgo
         </h3>
         <div className="space-y-6">
-          {isLoadingAiRisks && (
+          {aiData.risks.isLoading && (
             <div className="flex items-center justify-center p-4 text-red-600">
               <Loader className="animate-spin mr-2" size={20} />
               Generando riesgos con IA...
             </div>
           )}
 
-          {errorAiRisks && (
+          {aiData.risks.error && (
             <div className="p-4 text-red-600 bg-red-100 rounded-md">
-              <p>{errorAiRisks}</p>
+              <p>{aiData.risks.error}</p>
             </div>
           )}
 
-          {editableRisks.map((riskCategory, categoryIndex) => (
+          {!aiData.risks.isLoading && !aiData.risks.error && editableRisks.map((riskCategory, categoryIndex) => (
             <div key={categoryIndex} className="space-y-4 bg-red-100 p-4 rounded-md relative">
               <div className="flex justify-between items-center mb-2">
                 <input
@@ -579,29 +670,30 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
           Protocolos de Vigilancia Aplicables
         </h3>
         <div className="space-y-4">
-          {isLoadingAiProtocols && (
+          {aiData.protocols.isLoading && (
             <div className="flex items-center justify-center p-4 text-blue-600">
               <Loader className="animate-spin mr-2" size={20} />
               Generando protocolos MINSAL con IA...
             </div>
           )}
 
-          {errorAiProtocols && (
+          {aiData.protocols.error && (
             <div className="p-4 text-red-600 bg-red-100 rounded-md">
-              <p>{errorAiProtocols}</p>
+              <p>{aiData.protocols.error}</p>
             </div>
           )}
 
-          {editableProtocols.map((protocol, index) => (
-            <div key={index} className="bg-white p-4 rounded-md shadow-sm relative">
-              <div className="flex items-center gap-2 mb-2">
+          {!aiData.protocols.isLoading && !aiData.protocols.error && editableProtocols.map((protocol, index) => (
+            <div key={index} className="bg-white p-4 rounded-md shadow-sm relative space-y-2">
+              <div className="flex items-center gap-2">
                 <BookOpen size={16} className="text-blue-600" />
                 <input
                   type="text"
                   value={protocol.name}
+                  placeholder="Nombre del Protocolo"
                   onChange={(e) => {
                     const newProtocols = [...editableProtocols];
-                    newProtocols[index].name = e.target.value;
+                    newProtocols[index] = { ...newProtocols[index], name: e.target.value };
                     setEditableProtocols(newProtocols);
                   }}
                   className="font-semibold text-gray-800 w-full border-b border-gray-300 focus:outline-none focus:border-blue-500"
@@ -609,22 +701,44 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
               </div>
               <textarea
                 value={protocol.description}
+                placeholder="Descripción del Protocolo"
                 onChange={(e) => {
                   const newProtocols = [...editableProtocols];
-                  newProtocols[index].description = e.target.value;
+                  newProtocols[index] = { ...newProtocols[index], description: e.target.value };
                   setEditableProtocols(newProtocols);
                 }}
                 rows={2}
-                className="mt-1 text-gray-700 w-full border-b border-gray-300 focus:outline-none focus:border-blue-500 resize-y"
+                className="text-gray-700 w-full border-b border-gray-300 focus:outline-none focus:border-blue-500 resize-y"
               />
+              <input
+                type="url"
+                value={protocol.url || ''}
+                placeholder="URL del Documento (opcional)"
+                onChange={(e) => {
+                  const newProtocols = [...editableProtocols];
+                  newProtocols[index] = { ...newProtocols[index], url: e.target.value };
+                  setEditableProtocols(newProtocols);
+                }}
+                className="text-sm text-blue-500 w-full border-b border-gray-300 focus:outline-none focus:border-blue-500"
+              />
+              {protocol.url && (
+                <a
+                  href={protocol.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline break-all"
+                >
+                  {protocol.url}
+                </a>
+              )}
               <button
                 onClick={() => {
                   setEditableProtocols(editableProtocols.filter((_, i) => i !== index));
                 }}
-                className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                className="absolute top-3 right-3 text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
                 title="Eliminar protocolo"
               >
-                &times;
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
           ))}
@@ -632,10 +746,10 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
             onClick={() => {
               setEditableProtocols([
                 ...editableProtocols,
-                { name: '', description: '', applicable: true }
+                { name: '', description: '', applicable: true, url: '' }
               ]);
             }}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center gap-2"
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center gap-2 text-sm"
           >
             <BookOpen size={16} />
             Agregar Protocolo
@@ -650,20 +764,20 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
           Elementos de Protección Personal (EPP)
         </h3>
         <div className="space-y-4">
-          {isLoadingAiEpp && (
+          {aiData.epp.isLoading && (
             <div className="flex items-center justify-center p-4 text-yellow-600">
               <Loader className="animate-spin mr-2" size={20} />
               Generando EPP con IA...
             </div>
           )}
 
-          {errorAiEpp && (
+          {aiData.epp.error && (
             <div className="p-4 text-red-600 bg-red-100 rounded-md">
-              <p>{errorAiEpp}</p>
+              <p>{aiData.epp.error}</p>
             </div>
           )}
 
-          {editableEpp.map((eppItem, index) => (
+          {!aiData.epp.isLoading && !aiData.epp.error && editableEpp.map((eppItem, index) => (
             <div key={index} className="bg-white p-4 rounded-md shadow-sm relative">
               <div className="flex items-center gap-2 mb-2">
                 <HardHat size={16} className="text-yellow-600" />
@@ -708,15 +822,15 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
           Condiciones Especiales y Observaciones
         </h3>
         <div className="space-y-4">
-          {isLoadingAiSpecialConditions && (
+          {aiData.specialConditions.isLoading && (
             <div className="flex items-center justify-center p-4 text-yellow-600">
               <Loader className="animate-spin mr-2" size={20} />
               Generando condiciones especiales con IA...
             </div>
           )}
-          {errorAiSpecialConditions && (
+          {aiData.specialConditions.error && (
             <div className="p-4 text-red-600 bg-red-100 rounded-md">
-              <p>{errorAiSpecialConditions}</p>
+              <p>{aiData.specialConditions.error}</p>
             </div>
           )}
           <div>
@@ -731,15 +845,15 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
               placeholder="Indique condiciones particulares (ej: trabajo en altura, espacios confinados)"
             />
           </div>
-          {isLoadingAiAdditionalInfo && (
+          {aiData.additionalInfo.isLoading && (
             <div className="flex items-center justify-center p-4 text-yellow-600">
               <Loader className="animate-spin mr-2" size={20} />
               Generando información adicional con IA...
             </div>
           )}
-          {errorAiAdditionalInfo && (
+          {aiData.additionalInfo.error && (
             <div className="p-4 text-red-600 bg-red-100 rounded-md">
-              <p>{errorAiAdditionalInfo}</p>
+              <p>{aiData.additionalInfo.error}</p>
             </div>
           )}
           <div>
