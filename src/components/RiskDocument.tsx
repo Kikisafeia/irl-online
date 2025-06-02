@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Info, PenTool as Tool, FlaskRound as Flask, MapPin, Shield, FileText, Clipboard, BookOpen, HardHat, Loader } from 'lucide-react';
-import { CompanyInfo, JobInfo, Protocol, RiskCategory, Risk } from '../types';
+import { AlertTriangle, Info, PenTool as Tool, FlaskRound as Flask, MapPin, FileText, Clipboard, BookOpen, HardHat, Loader } from 'lucide-react';
+import { CompanyInfo, JobInfo, Protocol, RiskCategory } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
 
 interface RiskDocumentProps {
@@ -269,14 +269,6 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
     fetchAiAdditionalInfo();
   }, [jobInfo]); // Re-ejecutar cuando cambie la información del puesto de trabajo
 
-  // Función para generar riesgos basados en el puesto de trabajo
-  const generateRisks = () => {
-    // Esta función ahora solo genera riesgos estáticos si es necesario,
-    // pero la fuente principal de riesgos será la IA.
-    // Podríamos eliminar esta función si la IA es la única fuente.
-    return []; // Devolver un array vacío para que la IA sea la fuente principal
-  };
-
   // Generar protocolos aplicables según el puesto
   const generateProtocols = () => {
     const protocols = [];
@@ -322,7 +314,6 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
     return protocols;
   };
 
-  const staticRisks = generateRisks(); // Riesgos estáticos existentes (ahora devuelve [])
   const staticProtocols = generateProtocols(); // Protocolos estáticos existentes
 
   const [editableRisks, setEditableRisks] = useState<RiskCategory[]>([]);

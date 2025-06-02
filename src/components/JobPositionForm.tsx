@@ -21,53 +21,48 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
   const handleSuggest = async () => {
     setIsLoadingSuggestions(true);
     try {
-      const prompt = `Create a detailed job description for the position "${formData.position}" including the following sections:
-- Main Tasks
-- Work Environment
-- Equipment, Machinery, and Tools
-- Materials and Substances
-- Special Conditions
-- Additional Information
-
-Ensure the response is formatted as a VALID JSON object, including all necessary commas between properties. The keys should be: tasks, environment, equipment, materials, specialConditions, additionalInfo. Each value should be a string with line breaks for lists.
-
-# Output Format
-
-The response should be a JSON object with the following structure:
-\`\`\`json
-{
-  "tasks": "[Main tasks listed as a multiline string]",
-  "environment": "[Work environment details as a multiline string]",
-  "equipment": "[Equipment, machinery, and tools listed as a multiline string]",
-  "materials": "[Materials and substances listed as a multiline string]",
-  "specialConditions": "[Special conditions as a multiline string]",
-  "additionalInfo": "[Additional information as a multiline string]"
-}
-\`\`\`
-
-# Examples
-
-**Example 1**
-
-**Input:**
-"${formData.position}": "Software Developer"
-
-**Output:**
-\`\`\`json
-{
-  "tasks": "Design and develop software applications.\\nMaintain and update existing software.\\nCollaborate with team members to determine project requirements.",
-  "environment": "Office setting.\\nFlexible working hours.\\nRemote work options available.",
-  "equipment": "Laptop.\\nDevelopment software (e.g., IDE).\\nCollaboration tools (e.g., Slack, Zoom).",
-  "materials": "Technical documentation.\\nSoftware development kits (SDKs).",
-  "specialConditions": "Occasional overtime may be required.\\nAvailability for on-call support.",
-  "additionalInfo": "Opportunities for professional development.\\nHealth and wellness benefits offered."
-}
-\`\`\`
-*(For longer lists or descriptions than shown above, adjust and expand as appropriate.)*
-
-# Notes
-
-Consider edge cases, such as when information for a certain section is unavailable or not applicable, and how to properly reflect that in the JSON output."`;
+      const prompt = 
+        'Create a detailed job description for the position "' + formData.position + '" including the following sections:\n' +
+        '- Main Tasks\n' +
+        '- Work Environment\n' +
+        '- Equipment, Machinery, and Tools\n' +
+        '- Materials and Substances\n' +
+        '- Special Conditions\n' +
+        '- Additional Information\n\n' +
+        'Ensure the response is formatted as a VALID JSON object, including all necessary commas between properties. The keys should be: tasks, environment, equipment, materials, specialConditions, additionalInfo. Each value should be a string with line breaks for lists.\n\n' +
+        '# Output Format\n\n' +
+        'The response should be a JSON object with the following structure:\n' +
+        '```json\n' +
+        '{\n' +
+        '  "tasks": "[Main tasks listed as a multiline string]",\n' +
+        '  "environment": "[Work environment details as a multiline string]",\n' +
+        '  "equipment": "[Equipment, machinery, and tools listed as a multiline string]",\n' +
+        '  "materials": "[Materials and substances listed as a multiline string]",\n' +
+        '  "specialConditions": "[Special conditions as a multiline string]",\n' +
+        '  "additionalInfo": "[Additional information as a multiline string]"\n' +
+        '}\n' +
+        '```\n\n' +
+        '# Examples\n\n' +
+        '**Example 1**\n\n' +
+        '**Input:**\n' +
+        '"' + formData.position + '": "Software Developer"\n\n' +
+        '**Output:**\n' +
+        '```json\n' +
+        '{\n' +
+        '  "tasks": "Design and develop software applications.\\\\nMaintain and update existing software.\\\\nCollaborate with team members to determine project requirements.",\n' +
+        '  "environment": "Office setting.\\\\nFlexible working hours.\\\\nRemote work options available.",\n' +
+        '  "equipment": "Laptop.\\\\nDevelopment software (e.g., IDE).\\\\nCollaboration tools (e.g., Slack, Zoom).",\n' +
+        '  "materials": "Technical documentation.\\\\nSoftware development kits (SDKs).",\n' +
+        '  "specialConditions": "Occasional overtime may be required.\\\\nAvailability for on-call support.",\n' +
+        '  "additionalInfo": "Opportunities for professional development.\\\\nHealth and wellness benefits offered."\n' +
+        '}\n' +
+        '```\n' +
+        '*(For longer lists or descriptions than shown above, adjust and expand as appropriate.)*\n\n' +
+        '# Notes\n\n' +
+        '  - Ensure all keys ("tasks", "environment", "equipment", "materials", "specialConditions", "additionalInfo") are always present in the JSON response.\n' +
+        '  - Each value must be a string. If information for a section is unavailable, not applicable, or should be empty, use an empty string \\"\\" as the value. For example, if "Additional Information" is not applicable, the output should include \\"additionalInfo\\": \\"\\".\n' +
+        '  - Line breaks within string values should be represented as \\\\\\\\n.\n\n' +
+        'Consider edge cases, such as when information for a certain section is unavailable or not applicable, and how to properly reflect that in the JSON output.';
 
       const aiResponse = await getAIRecommendations(prompt);
       let parsedResponse;
