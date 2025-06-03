@@ -17,7 +17,15 @@ export const getAIRecommendations = async (prompt: string): Promise<string> => {
     // const data = await response.json();
     // return data.recommendation;
 
-    return 'Recomendación simulada - implementar backend real';
+    // Simulación de respuesta JSON válida para desarrollo
+    return JSON.stringify({
+      tasks: "Tareas simuladas: Analizar requisitos, desarrollar software, realizar pruebas.",
+      environment: "Entorno simulado: Oficina, trabajo remoto, reuniones virtuales.",
+      equipment: "Equipo simulado: Laptop, IDE, herramientas de comunicación.",
+      materials: "Materiales simulados: Documentación técnica, café.",
+      specialConditions: "Condiciones simuladas: Plazos ajustados, colaboración en equipo.",
+      additionalInfo: "Información adicional simulada: Oportunidades de aprendizaje."
+    });
   } catch (error) {
     console.error('Error obteniendo recomendaciones:', error);
     throw error;

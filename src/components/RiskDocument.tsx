@@ -3,6 +3,17 @@ import { AlertTriangle, Info, PenTool as Tool, FlaskRound as Flask, MapPin, File
 import { CompanyInfo, JobInfo, Protocol, RiskCategory } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
 
+// Función de sanitización local (debido a problemas con la centralización)
+const sanitizeInput = (str: string): string => {
+  return str
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+};
+
 interface RiskDocumentProps {
   companyInfo: CompanyInfo;
   jobInfo: JobInfo;
@@ -80,52 +91,21 @@ Ejemplo de formato:
 `;
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
-        let jsonString = aiResponse;
-        let parseErrorOccurred = false;
-
-        // Attempt 1: Extract JSON string from markdown code block
-        const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
-        if (jsonMatch && jsonMatch[1]) {
-          jsonString = jsonMatch[1];
-          try {
-            parsedResponse = JSON.parse(jsonString);
-            console.log('Successfully parsed JSON from markdown block for AI protocols.');
-          } catch (markdownParseError) {
-            console.error('Failed to parse JSON from markdown block for AI protocols. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
-            parseErrorOccurred = true;
-          }
-        } else {
-          console.warn('Markdown JSON block not found for AI protocols. Will attempt to parse from brackets.');
-          parseErrorOccurred = true; // Proceed to next attempt
-        }
-
-        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
-        if (parseErrorOccurred || !parsedResponse) {
-          parseErrorOccurred = false; // Reset for this attempt
-          const firstBracket = aiResponse.indexOf('[');
-          const lastBracket = aiResponse.lastIndexOf(']');
-          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
-            try {
-              parsedResponse = JSON.parse(jsonString);
-              console.log('Successfully parsed JSON for AI protocols from first/last brackets.');
-            } catch (bracketParseError) {
-              console.error('Failed to parse JSON for AI protocols from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
-              parseErrorOccurred = true;
-            }
-          } else {
-            console.warn('Could not find valid first and last brackets for AI protocols JSON extraction.');
-            parseErrorOccurred = true;
-          }
-        }
-
-        if (parseErrorOccurred || !parsedResponse) {
-          console.error('All JSON parsing attempts failed for AI protocols. Raw AI response:', aiResponse);
-          throw new Error('Failed to parse JSON for AI protocols from AI response after multiple attempts.');
+        try {
+          parsedResponse = JSON.parse(aiResponse);
+        } catch (err) {
+          const error = err as Error;
+          console.error('Error al parsear la respuesta de IA para protocolos:', error.message);
+          throw new Error(`No se pudo analizar la respuesta de IA para protocolos. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
         }
 
         if (Array.isArray(parsedResponse)) {
-          setAiData(prev => ({ ...prev, protocols: { data: parsedResponse, isLoading: false, error: null } }));
+          setAiData(prev => ({ ...prev, protocols: { data: parsedResponse.map(p => ({
+            ...p,
+            name: sanitizeInput(p.name),
+            description: sanitizeInput(p.description),
+            url: p.url ? sanitizeInput(p.url) : undefined // Sanear URL si existe
+          })), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI protocols is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
           throw new Error("La respuesta de la IA no es un array JSON válido para protocolos.");
@@ -169,52 +149,25 @@ Ejemplo de formato:
 `;
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
-        let jsonString = aiResponse;
-        let parseErrorOccurred = false;
-
-        // Attempt 1: Extract JSON string from markdown code block
-        const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
-        if (jsonMatch && jsonMatch[1]) {
-          jsonString = jsonMatch[1];
-          try {
-            parsedResponse = JSON.parse(jsonString);
-            console.log('Successfully parsed JSON from markdown block for AI risks.');
-          } catch (markdownParseError) {
-            console.error('Failed to parse JSON from markdown block for AI risks. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
-            parseErrorOccurred = true;
-          }
-        } else {
-          console.warn('Markdown JSON block not found for AI risks. Will attempt to parse from brackets.');
-          parseErrorOccurred = true; // Proceed to next attempt
-        }
-
-        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
-        if (parseErrorOccurred || !parsedResponse) {
-          parseErrorOccurred = false; // Reset for this attempt
-          const firstBracket = aiResponse.indexOf('[');
-          const lastBracket = aiResponse.lastIndexOf(']');
-          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
-            try {
-              parsedResponse = JSON.parse(jsonString);
-              console.log('Successfully parsed JSON for AI risks from first/last brackets.');
-            } catch (bracketParseError) {
-              console.error('Failed to parse JSON for AI risks from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
-              parseErrorOccurred = true;
-            }
-          } else {
-            console.warn('Could not find valid first and last brackets for AI risks JSON extraction.');
-            parseErrorOccurred = true;
-          }
-        }
-
-        if (parseErrorOccurred || !parsedResponse) {
-          console.error('All JSON parsing attempts failed for AI risks. Raw AI response:', aiResponse);
-          throw new Error('Failed to parse JSON for AI risks from AI response after multiple attempts.');
+        try {
+          parsedResponse = JSON.parse(aiResponse);
+        } catch (err) {
+          const error = err as Error;
+          console.error('Error al parsear la respuesta de IA para riesgos:', error.message);
+          throw new Error(`No se pudo analizar la respuesta de IA para riesgos. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
         }
 
         if (Array.isArray(parsedResponse)) {
-          setAiData(prev => ({ ...prev, risks: { data: parsedResponse, isLoading: false, error: null } }));
+          setAiData(prev => ({ ...prev, risks: { data: parsedResponse.map(cat => ({
+            ...cat,
+            category: sanitizeInput(cat.category),
+            risks: cat.risks.map((r: any) => ({
+              ...r,
+              name: sanitizeInput(r.name),
+              consequences: sanitizeInput(r.consequences),
+              measures: r.measures.map(sanitizeInput)
+            }))
+          })), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI risks is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
           throw new Error("La respuesta de la IA no es un array JSON válido para riesgos.");
@@ -252,52 +205,16 @@ Ejemplo de formato:
 `;
         const aiResponse = await getAIRecommendations(prompt);
         let parsedResponse;
-        let jsonString = aiResponse;
-        let parseErrorOccurred = false;
-
-        // Attempt 1: Extract JSON string from markdown code block
-        const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
-        if (jsonMatch && jsonMatch[1]) {
-          jsonString = jsonMatch[1];
-          try {
-            parsedResponse = JSON.parse(jsonString);
-            console.log('Successfully parsed JSON from markdown block for AI EPP.');
-          } catch (markdownParseError) {
-            console.error('Failed to parse JSON from markdown block for AI EPP. Attempted JSON string:', jsonString, 'Error:', markdownParseError);
-            parseErrorOccurred = true;
-          }
-        } else {
-          console.warn('Markdown JSON block not found for AI EPP. Will attempt to parse from brackets.');
-          parseErrorOccurred = true; // Proceed to next attempt
-        }
-
-        // Attempt 2: Find first '[' and last ']' (since expected type is an array)
-        if (parseErrorOccurred || !parsedResponse) {
-          parseErrorOccurred = false; // Reset for this attempt
-          const firstBracket = aiResponse.indexOf('[');
-          const lastBracket = aiResponse.lastIndexOf(']');
-          if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-            jsonString = aiResponse.substring(firstBracket, lastBracket + 1);
-            try {
-              parsedResponse = JSON.parse(jsonString);
-              console.log('Successfully parsed JSON for AI EPP from first/last brackets.');
-            } catch (bracketParseError) {
-              console.error('Failed to parse JSON for AI EPP from first/last brackets. Attempted JSON string:', jsonString, 'Error:', bracketParseError);
-              parseErrorOccurred = true;
-            }
-          } else {
-            console.warn('Could not find valid first and last brackets for AI EPP JSON extraction.');
-            parseErrorOccurred = true;
-          }
-        }
-
-        if (parseErrorOccurred || !parsedResponse) {
-          console.error('All JSON parsing attempts failed for AI EPP. Raw AI response:', aiResponse);
-          throw new Error('Failed to parse JSON for AI EPP from AI response after multiple attempts.');
+        try {
+          parsedResponse = JSON.parse(aiResponse);
+        } catch (err) {
+          const error = err as Error;
+          console.error('Error al parsear la respuesta de IA para EPP:', error.message);
+          throw new Error(`No se pudo analizar la respuesta de IA para EPP. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
         }
 
         if (Array.isArray(parsedResponse) && parsedResponse.every(item => typeof item === 'string')) {
-          setAiData(prev => ({ ...prev, epp: { data: parsedResponse, isLoading: false, error: null } }));
+          setAiData(prev => ({ ...prev, epp: { data: parsedResponse.map(sanitizeInput), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI EPP is not a valid array of strings. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
           throw new Error("La respuesta de la IA no es un array JSON válido de strings para EPP.");
@@ -323,7 +240,7 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay condiciones especiales, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiData(prev => ({ ...prev, specialConditions: { data: aiResponse, isLoading: false, error: null } }));
+        setAiData(prev => ({ ...prev, specialConditions: { data: sanitizeInput(aiResponse), isLoading: false, error: null } }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar condiciones especiales de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI special conditions:', err);
@@ -345,7 +262,7 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay información adicional, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiData(prev => ({ ...prev, additionalInfo: { data: aiResponse, isLoading: false, error: null } }));
+        setAiData(prev => ({ ...prev, additionalInfo: { data: sanitizeInput(aiResponse), isLoading: false, error: null } }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar información adicional de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI additional info:', err);

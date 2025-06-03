@@ -73,27 +73,38 @@ function App() {
 
         <main className="container mx-auto px-4 py-8">
           {/* Progress Steps */}
-          <div className="mb-8">
-            <div className="flex items-center justify-center">
-              <div className={`flex items-center ${step >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
-                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 1 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'}`}>
+          <div className="mb-8 px-4 sm:px-0"> {/* Added horizontal padding for small screens */}
+            <div className="flex flex-col sm:flex-row items-center justify-center text-center sm:text-left">
+              {/* Step 1: Empresa */}
+              <div className={`flex flex-col items-center sm:flex-row sm:flex-1 ${step >= 1 ? 'text-blue-600' : 'text-gray-400'} mb-4 sm:mb-0`}>
+                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 1 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'} flex-shrink-0`}>
                   <Building2 size={20} />
                 </div>
-                <span className="ml-2 font-medium">Empresa</span>
+                <span className="mt-2 sm:mt-0 sm:ml-2 text-sm sm:text-base font-medium whitespace-nowrap">Empresa</span>
               </div>
-              <div className={`flex-1 h-1 mx-4 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-              <div className={`flex items-center ${step >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 2 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'}`}>
+
+              {/* Separator 1 */}
+              <div className={`flex-1 h-1 w-full sm:w-auto mx-0 sm:mx-4 my-2 sm:my-0 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'} hidden sm:block`}></div> {/* Hide on mobile */}
+              <div className={`w-px h-8 mx-auto ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'} block sm:hidden`}></div> {/* Vertical separator for mobile */}
+
+              {/* Step 2: Puesto de Trabajo */}
+              <div className={`flex flex-col items-center sm:flex-row sm:flex-1 ${step >= 2 ? 'text-blue-600' : 'text-gray-400'} mb-4 sm:mb-0`}>
+                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 2 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'} flex-shrink-0`}>
                   <Briefcase size={20} />
                 </div>
-                <span className="ml-2 font-medium">Puesto de Trabajo</span>
+                <span className="mt-2 sm:mt-0 sm:ml-2 text-sm sm:text-base font-medium whitespace-nowrap">Puesto de Trabajo</span>
               </div>
-              <div className={`flex-1 h-1 mx-4 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-              <div className={`flex items-center ${step >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
-                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 3 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'}`}>
+
+              {/* Separator 2 */}
+              <div className={`flex-1 h-1 w-full sm:w-auto mx-0 sm:mx-4 my-2 sm:my-0 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'} hidden sm:block`}></div> {/* Hide on mobile */}
+              <div className={`w-px h-8 mx-auto ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'} block sm:hidden`}></div> {/* Vertical separator for mobile */}
+
+              {/* Step 3: Documento IRL */}
+              <div className={`flex flex-col items-center sm:flex-row sm:flex-1 ${step >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
+                <div className={`rounded-full h-10 w-10 flex items-center justify-center border-2 ${step >= 3 ? 'border-blue-600 bg-blue-100' : 'border-gray-400'} flex-shrink-0`}>
                   <FileText size={20} />
                 </div>
-                <span className="ml-2 font-medium">Documento IRL</span>
+                <span className="mt-2 sm:mt-0 sm:ml-2 text-sm sm:text-base font-medium whitespace-nowrap">Documento IRL</span>
               </div>
             </div>
           </div>

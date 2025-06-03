@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, ListChecks, MapPin, PenTool as Tool, FlaskRound as Flask, AlertTriangle, Info } from 'lucide-react';
+import { Briefcase } from 'lucide-react';
 import { JobInfo } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
 
@@ -87,41 +87,26 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
       const prompt = JOB_DESCRIPTION_PROMPT_TEMPLATE(formData.position);
       const aiResponse = await getAIRecommendations(prompt);
       
+      console.log('Respuesta de IA:', aiResponse); // Log para diagnóstico
+      
       let parsedResponse;
-      let jsonString = aiResponse;
-      let parseErrorOccurred = false;
-
-      // Attempt 1: Extract JSON from markdown code block
-      const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch && jsonMatch[1]) {
-        jsonString = jsonMatch[1];
-        try {
-          parsedResponse = JSON.parse(jsonString);
-        } catch (error) {
-          console.error('Error parsing JSON from markdown:', error);
-          parseErrorOccurred = true;
-        }
-      } else {
-        parseErrorOccurred = true;
+      
+      // Simplificar el parsing, ya que la simulación devuelve JSON puro.
+      // Si se conecta a una IA real que devuelve markdown, esta lógica podría necesitar ser más robusta,
+      // o idealmente, el backend debería encargarse de entregar un JSON limpio.
+      try {
+        parsedResponse = JSON.parse(aiResponse);
+      } catch (err) {
+        const error = err as Error;
+        console.error('Error al parsear la respuesta de IA:', error.message);
+        throw new Error(`No se pudo analizar la respuesta de IA. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
       }
 
-      // Attempt 2: Find first '{' and last '}'
-      if (parseErrorOccurred) {
-        const firstBrace = aiResponse.indexOf('{');
-        const lastBrace = aiResponse.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-          jsonString = aiResponse.substring(firstBrace, lastBrace + 1);
-          try {
-            parsedResponse = JSON.parse(jsonString);
-            parseErrorOccurred = false;
-          } catch (error) {
-            console.error('Error parsing JSON from braces:', error);
-          }
-        }
-      }
-
-      if (parseErrorOccurred || !parsedResponse) {
-        throw new Error('No se pudo analizar la respuesta de IA');
+      // Validar estructura del JSON
+      if (!parsedResponse || 
+          typeof parsedResponse !== 'object' || 
+          !('tasks' in parsedResponse)) {
+        throw new Error('La respuesta de la IA no tiene el formato esperado o está incompleta.');
       }
 
       setFormData(prev => ({
@@ -133,19 +118,15 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
         specialConditions: parsedResponse.specialConditions || '',
         additionalInfo: parsedResponse.additionalInfo || ''
       }));
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       console.error('Error generando sugerencias:', error);
-      alert('Error al generar sugerencias. Por favor intente nuevamente.');
+      alert(`Error al generar sugerencias: ${error.message}\n\nPor favor verifica:\n1. Que el cargo esté bien escrito\n2. Que la conexión a internet funcione\n3. Intenta nuevamente más tarde`);
     } finally {
       setIsLoadingSuggestions(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const sanitizedValue = (type === 'text' || type === 'textarea') ? sanitizeInput(value) : value;
-    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,14 +134,14 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
   };
 
   return (
-    <div>
+    <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
       <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
         <Briefcase className="mr-2 text-blue-600" />
         Información del Puesto de Trabajo
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Cargo */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -176,7 +157,7 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
                 value={formData.position}
                 onChange={handlePositionChange}
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full pl-10 pr-3 py-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Nombre del cargo o función"
               />
             </div>
@@ -185,9 +166,17 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
                 type="button"
                 onClick={handleSuggest}
                 disabled={isLoadingSuggestions}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800 focus:outline-none disabled:text-gray-400 disabled:cursor-not-allowed"
+                className="mt-3 w-full sm:w-auto px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoadingSuggestions ? 'Generando sugerencias...' : 'Sugerir contenido para este cargo'}
+                {isLoadingSuggestions ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generando...
+                  </span>
+                ) : 'Sugerir contenido para este cargo'}
               </button>
             )}
           </div>
@@ -196,17 +185,17 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
           {/* (Mantener el resto del JSX igual) */}
         </div>
 
-        <div className="flex justify-between pt-6">
+        <div className="flex flex-col sm:flex-row justify-between gap-3 pt-6">
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
           >
             Volver
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
             Continuar
           </button>
