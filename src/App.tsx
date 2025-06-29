@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Building2, Briefcase, FileText } from 'lucide-react';
 import CompanyForm from './components/CompanyForm';
 import JobPositionForm from './components/JobPositionForm';
 import RiskDocument from './components/RiskDocument';
+import LoginPopup from './components/LoginPopup'; // Importar LoginPopup
 import { CompanyInfo, JobInfo } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   console.log('App component rendered'); // Keep this log for debugging
+  const [showLoginPopup, setShowLoginPopup] = useState(true); // Estado para controlar la visibilidad del popup
   const [step, setStep] = useState(1);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
     name: '',
@@ -61,9 +63,38 @@ function App() {
     });
   };
 
+  const handleLoginSubmit = async (data: { name: string; email: string }) => {
+    console.log('Datos de inicio de sesión:', data);
+    try {
+      const response = await fetch('https://hook.eu2.make.com/u5yd1vi8tgpncf57blhrroz5uhdy4djr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      if (response.ok) {
+        console.log('Login successful');
+        setShowLoginPopup(false); // Cerrar popup al iniciar sesión exitosamente
+      } else {
+        console.error('Login failed:', response.statusText);
+        // Manejar error de inicio de sesión
+      }
+    } catch (error) {
+      console.error('Error al enviar datos:', error);
+    }
+  };
+
+  const handleCloseLoginPopup = () => {
+    setShowLoginPopup(false);
+  };
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-50">
+        {showLoginPopup && (
+          <LoginPopup onClose={handleCloseLoginPopup} onSubmit={handleLoginSubmit} />
+        )}
         <header className="bg-blue-700 text-white shadow-md">
           <div className="container mx-auto px-4 py-4">
             <h1 className="text-2xl font-bold">Sistema de Información de Riesgos Laborales (IRL)</h1>
