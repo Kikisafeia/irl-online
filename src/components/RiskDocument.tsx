@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Info, PenTool as Tool, FlaskRound as Flask, MapPin, FileText, Clipboard, BookOpen, HardHat, Loader } from 'lucide-react';
+import { AlertTriangle, Info, PenTool as Tool, FlaskRound as Flask, MapPin, FileText, Clipboard, BookOpen, HardHat, Loader, Search, ExternalLink } from 'lucide-react';
 import { CompanyInfo, JobInfo, Protocol, RiskCategory } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
-
-// Función de sanitización local (debido a problemas con la centralización)
-const sanitizeInput = (str: string): string => {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-};
+import { sanitizeInput } from '../utils/sanitization';
+import { useToast } from '../contexts/ToastContext';
 
 interface RiskDocumentProps {
   companyInfo: CompanyInfo;
@@ -28,6 +19,7 @@ const RiskDocument: React.FC<RiskDocumentProps> = ({
   onReset
 }) => {
   const currentDate = new Date().toLocaleDateString('es-CL');
+  const { addToast } = useToast();
 
   interface AIFetchState<T> {
     data: T | null;
@@ -50,6 +42,14 @@ const RiskDocument: React.FC<RiskDocumentProps> = ({
     specialConditions: { data: '', isLoading: false, error: null },
     additionalInfo: { data: '', isLoading: false, error: null },
   });
+
+  // State for Brave Search
+  const [braveSearchQuery, setBraveSearchQuery] = useState<string>('');
+  // Ajusta 'any' al tipo de resultado específico que Brave Search devuelve
+  const [braveSearchResults, setBraveSearchResults] = useState<any[] | null>(null);
+  const [isBraveSearchLoading, setIsBraveSearchLoading] = useState<boolean>(false);
+  const [braveSearchError, setBraveSearchError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchAiProtocols = async () => {
@@ -90,14 +90,8 @@ Ejemplo de formato:
 \`\`\`
 `;
         const aiResponse = await getAIRecommendations(prompt);
-        let parsedResponse;
-        try {
-          parsedResponse = JSON.parse(aiResponse);
-        } catch (err) {
-          const error = err as Error;
-          console.error('Error al parsear la respuesta de IA para protocolos:', error.message);
-          throw new Error(`No se pudo analizar la respuesta de IA para protocolos. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
-        }
+        // getAIRecommendations now returns parsed object directly or string
+        const parsedResponse = aiResponse;
 
         if (Array.isArray(parsedResponse)) {
           setAiData(prev => ({ ...prev, protocols: { data: parsedResponse.map(p => ({
@@ -108,11 +102,14 @@ Ejemplo de formato:
           })), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI protocols is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
-          throw new Error("La respuesta de la IA no es un array JSON válido para protocolos.");
+          addToast("La respuesta de la IA para protocolos no es un array JSON válido.", 'error');
+          setAiData(prev => ({ ...prev, protocols: { ...prev.protocols, isLoading: false, error: "La respuesta de la IA no es un array JSON válido para protocolos." } }));
+          return; // Exit early to prevent further processing with bad data
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar protocolos de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating or parsing AI protocols:', err);
+        addToast(errorMessage, 'error');
         setAiData(prev => ({ ...prev, protocols: { ...prev.protocols, isLoading: false, error: errorMessage } }));
       }
     };
@@ -148,14 +145,8 @@ Ejemplo de formato:
 \`\`\`
 `;
         const aiResponse = await getAIRecommendations(prompt);
-        let parsedResponse;
-        try {
-          parsedResponse = JSON.parse(aiResponse);
-        } catch (err) {
-          const error = err as Error;
-          console.error('Error al parsear la respuesta de IA para riesgos:', error.message);
-          throw new Error(`No se pudo analizar la respuesta de IA para riesgos. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
-        }
+        // getAIRecommendations now returns parsed object directly or string
+        const parsedResponse = aiResponse;
 
         if (Array.isArray(parsedResponse)) {
           setAiData(prev => ({ ...prev, risks: { data: parsedResponse.map(cat => ({
@@ -170,11 +161,14 @@ Ejemplo de formato:
           })), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI risks is not an array. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
-          throw new Error("La respuesta de la IA no es un array JSON válido para riesgos.");
+          addToast("La respuesta de la IA para riesgos no es un array JSON válido.", 'error');
+          setAiData(prev => ({ ...prev, risks: { ...prev.risks, isLoading: false, error: "La respuesta de la IA no es un array JSON válido para riesgos." } }));
+          return; // Exit early to prevent further processing with bad data
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar riesgos de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating or parsing AI risks:', err);
+        addToast(errorMessage, 'error');
         setAiData(prev => ({ ...prev, risks: { ...prev.risks, isLoading: false, error: errorMessage } }));
       }
     };
@@ -204,24 +198,21 @@ Ejemplo de formato:
 \`\`\`
 `;
         const aiResponse = await getAIRecommendations(prompt);
-        let parsedResponse;
-        try {
-          parsedResponse = JSON.parse(aiResponse);
-        } catch (err) {
-          const error = err as Error;
-          console.error('Error al parsear la respuesta de IA para EPP:', error.message);
-          throw new Error(`No se pudo analizar la respuesta de IA para EPP. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
-        }
+        // getAIRecommendations now returns parsed object directly or string
+        const parsedResponse = aiResponse;
 
         if (Array.isArray(parsedResponse) && parsedResponse.every(item => typeof item === 'string')) {
           setAiData(prev => ({ ...prev, epp: { data: parsedResponse.map(sanitizeInput), isLoading: false, error: null } }));
         } else {
           console.error('Parsed data for AI EPP is not a valid array of strings. Raw AI response:', aiResponse, 'Parsed data:', parsedResponse);
-          throw new Error("La respuesta de la IA no es un array JSON válido de strings para EPP.");
+          addToast("La respuesta de la IA para EPP no es un array JSON válido de strings.", 'error');
+          setAiData(prev => ({ ...prev, epp: { ...prev.epp, isLoading: false, error: "La respuesta de la IA no es un array JSON válido de strings para EPP." } }));
+          return; // Exit early
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar EPP de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating or parsing AI EPP:', err);
+        addToast(errorMessage, 'error');
         setAiData(prev => ({ ...prev, epp: { ...prev.epp, isLoading: false, error: errorMessage } }));
       }
     };
@@ -240,10 +231,12 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay condiciones especiales, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiData(prev => ({ ...prev, specialConditions: { data: sanitizeInput(aiResponse), isLoading: false, error: null } }));
+        // getAIRecommendations now returns parsed object directly or string
+        setAiData(prev => ({ ...prev, specialConditions: { data: sanitizeInput(String(aiResponse)), isLoading: false, error: null } }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar condiciones especiales de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI special conditions:', err);
+        addToast(errorMessage, 'error');
         setAiData(prev => ({ ...prev, specialConditions: { ...prev.specialConditions, isLoading: false, error: errorMessage } }));
       }
     };
@@ -262,10 +255,12 @@ Información Adicional: ${jobInfo.additionalInfo}
 
 Formatea la respuesta como un string de texto plano. Si no hay información adicional, devuelve un string vacío.`;
         const aiResponse = await getAIRecommendations(prompt);
-        setAiData(prev => ({ ...prev, additionalInfo: { data: sanitizeInput(aiResponse), isLoading: false, error: null } }));
+        // getAIRecommendations now returns parsed object directly or string
+        setAiData(prev => ({ ...prev, additionalInfo: { data: sanitizeInput(String(aiResponse)), isLoading: false, error: null } }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al generar información adicional de IA. Por favor, inténtelo de nuevo.';
         console.error('Error generating AI additional info:', err);
+        addToast(errorMessage, 'error');
         setAiData(prev => ({ ...prev, additionalInfo: { ...prev.additionalInfo, isLoading: false, error: errorMessage } }));
       }
     };
@@ -328,10 +323,10 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
   const [editableRisks, setEditableRisks] = useState<RiskCategory[]>([]);
 
   useEffect(() => {
-    if (!aiData.risks.isLoading) {
+    if (!aiData.risks.isLoading && JSON.stringify(editableRisks) !== JSON.stringify(aiData.risks.data || [])) {
       setEditableRisks(aiData.risks.data || []);
     }
-  }, [aiData.risks.data, aiData.risks.isLoading]);
+  }, [aiData.risks.data, aiData.risks.isLoading, editableRisks]);
 
   // Combinar protocolos estáticos y generados por IA para la edición
   const [editableProtocols, setEditableProtocols] = useState<Protocol[]>([]);
@@ -340,34 +335,65 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
     if (!aiData.protocols.isLoading) {
       const aiProtocolsData = aiData.protocols.data || [];
       const combinedProtocols = [...staticProtocols, ...aiProtocolsData];
-      setEditableProtocols(combinedProtocols);
+      if (JSON.stringify(editableProtocols) !== JSON.stringify(combinedProtocols)) {
+        setEditableProtocols(combinedProtocols);
+      }
     }
-  }, [staticProtocols, aiData.protocols.data, aiData.protocols.isLoading]);
+  }, [staticProtocols, aiData.protocols.data, aiData.protocols.isLoading, editableProtocols]);
 
   const [editableEpp, setEditableEpp] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!aiData.epp.isLoading) {
+    if (!aiData.epp.isLoading && JSON.stringify(editableEpp) !== JSON.stringify(aiData.epp.data || [])) {
       setEditableEpp(aiData.epp.data || []);
     }
-  }, [aiData.epp.data, aiData.epp.isLoading]);
+  }, [aiData.epp.data, aiData.epp.isLoading, editableEpp]);
 
   const [editableSpecialConditions, setEditableSpecialConditions] = useState<string>('');
 
   useEffect(() => {
-    if (!aiData.specialConditions.isLoading) {
+    if (!aiData.specialConditions.isLoading && editableSpecialConditions !== (aiData.specialConditions.data || '')) {
       setEditableSpecialConditions(aiData.specialConditions.data || '');
     }
-  }, [aiData.specialConditions.data, aiData.specialConditions.isLoading]);
+  }, [aiData.specialConditions.data, aiData.specialConditions.isLoading, editableSpecialConditions]);
 
   const [editableAdditionalInfo, setEditableAdditionalInfo] = useState<string>('');
 
   useEffect(() => {
-    if (!aiData.additionalInfo.isLoading) {
+    if (!aiData.additionalInfo.isLoading && editableAdditionalInfo !== (aiData.additionalInfo.data || '')) {
       setEditableAdditionalInfo(aiData.additionalInfo.data || '');
     }
-  }, [aiData.additionalInfo.data, aiData.additionalInfo.isLoading]);
+  }, [aiData.additionalInfo.data, aiData.additionalInfo.isLoading, editableAdditionalInfo]);
 
+  const handleBraveSearch = async (e?: React.FormEvent<HTMLFormElement>) => {
+    if (e) e.preventDefault();
+    if (!braveSearchQuery.trim()) {
+      addToast("Por favor, ingrese un término de búsqueda para Brave Search.", 'warning');
+      setBraveSearchError("Por favor, ingrese un término de búsqueda."); // Keep for local state
+      setBraveSearchResults(null);
+      return;
+    }
+    setIsBraveSearchLoading(true);
+    setBraveSearchError(null);
+    setBraveSearchResults(null);
+    try {
+      const response = await fetch(`/api/brave-search?q=${encodeURIComponent(braveSearchQuery)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+      }
+      const data = await response.json();
+      // Asumiendo que 'data' es el array de resultados o un objeto que los contiene.
+      // Por ejemplo, si los resultados están en data.web.results o similar:
+      setBraveSearchResults(data.web?.results || data.results || data || []);
+    } catch (error: any) {
+      const errorMessage = error.message || "Ocurrió un error al realizar la búsqueda.";
+      addToast(`Error en Brave Search: ${errorMessage}`, 'error');
+      setBraveSearchError(errorMessage); // Keep for local state
+    } finally {
+      setIsBraveSearchLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -786,6 +812,60 @@ Formatea la respuesta como un string de texto plano. Si no hay información adic
             />
           </div>
         </div>
+      </section>
+
+      {/* Brave Search Section */}
+      <section className="bg-indigo-50 p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+          <Search size={24} />
+          Búsqueda de Información Adicional (Brave Search)
+        </h3>
+        <form onSubmit={handleBraveSearch} className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={braveSearchQuery}
+            onChange={(e) => setBraveSearchQuery(e.target.value)}
+            placeholder="Buscar protocolos, normativas, etc."
+            className="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <button
+            type="submit"
+            disabled={isBraveSearchLoading}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center gap-2"
+          >
+            {isBraveSearchLoading ? <Loader className="animate-spin" size={20} /> : <Search size={20} />}
+            Buscar
+          </button>
+        </form>
+
+        {isBraveSearchLoading && (
+          <div className="flex items-center justify-center p-4 text-indigo-600">
+            <Loader className="animate-spin mr-2" size={20} />
+            Buscando...
+          </div>
+        )}
+        {braveSearchError && (
+          <div className="p-4 text-red-700 bg-red-100 rounded-md">
+            <p>Error: {braveSearchError}</p>
+          </div>
+        )}
+        {braveSearchResults && braveSearchResults.length > 0 && (
+          <div className="space-y-3 mt-4">
+            <h4 className="text-md font-semibold text-indigo-700">Resultados de la búsqueda:</h4>
+            {braveSearchResults.map((result, index) => (
+              <div key={index} className="p-3 border rounded-md bg-white shadow-sm">
+                <a href={result.url || '#'} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-medium flex items-center gap-1">
+                  {result.title || 'Resultado sin título'} <ExternalLink size={14} />
+                </a>
+                <p className="text-sm text-gray-600 mt-1">{result.description || result.snippet || 'Sin descripción.'}</p>
+                {result.page_age && <p className="text-xs text-gray-400 mt-1">Actualizado: {new Date(result.page_age).toLocaleDateString()}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+        {braveSearchResults && braveSearchResults.length === 0 && !isBraveSearchLoading && !braveSearchError && (
+          <p className="text-gray-500 italic">No se encontraron resultados para "{braveSearchQuery}".</p>
+        )}
       </section>
 
       {/* Obligaciones del Trabajador */}

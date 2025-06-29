@@ -5,18 +5,7 @@ import { CompanyInfo } from '../types';
 // General UI/UX Note: For user notifications (errors, successes, warnings), consider implementing a consistent
 // feedback system, such as toast notifications or inline messages, throughout the application.
 
-// Basic sanitization utility to prevent simple XSS by replacing HTML special characters.
-// IMPORTANT: This is a basic client-side sanitization measure.
-// Robust server-side validation and sanitization are crucial for security.
-const sanitizeInput = (str: string): string => {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-};
+import { sanitizeInput } from '../utils/sanitization';
 
 interface CompanyFormProps {
   initialData: CompanyInfo;

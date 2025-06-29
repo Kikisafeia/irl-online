@@ -2,19 +2,8 @@ import React, { useState } from 'react';
 import { Briefcase } from 'lucide-react';
 import { JobInfo } from '../types';
 import { getAIRecommendations } from '../services/azureOpenAIService';
-
-// Basic sanitization utility to prevent simple XSS by replacing HTML special characters.
-// IMPORTANT: This is a basic client-side sanitization measure.
-// Robust server-side validation and sanitization are crucial for security.
-const sanitizeInput = (str: string): string => {
-  return str
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-};
+import { sanitizeInput } from '../utils/sanitization';
+import { useToast } from '../contexts/ToastContext';
 
 const JOB_DESCRIPTION_PROMPT_TEMPLATE = (position: string) => `User-provided position: "${position}"
 
@@ -26,7 +15,7 @@ Based on the user-provided position above, create a detailed job description inc
 - Special Conditions
 - Additional Information
 
-Ensure the response is formatted as a VALID JSON object, including all necessary commas between properties. The keys should be: tasks, environment, equipment, materials, specialConditions, additionalInfo. Each value should be a string with line breaks for lists.
+Ensure the response is formatted as a VALID JSON object, including all necessary commas between properties. The keys should be: tasks, environment, equipment, materials, specialConditions, additionalInfo. Each value should be a string with line breaks for lists. The response MUST be in Spanish.
 
 # Output Format
 
@@ -64,7 +53,7 @@ User-provided position: "Software Developer"
 
 # Notes
 
-Consider edge cases, such as when information for a certain section is unavailable or not applicable, and how to properly reflect that in the JSON output."`;
+Consider edge cases, such as when information for a certain section is unavailable or not applicable, and how to properly reflect that in the JSON output.`;
 
 interface JobPositionFormProps {
   initialData: JobInfo;
@@ -75,10 +64,16 @@ interface JobPositionFormProps {
 const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit, onBack }) => {
   const [formData, setFormData] = useState<JobInfo>(initialData);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const { addToast } = useToast();
 
   const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const position = sanitizeInput(e.target.value);
     setFormData(prev => ({ ...prev, position }));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: sanitizeInput(value) }));
   };
 
   const handleSuggest = async () => {
@@ -89,18 +84,7 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
       
       console.log('Respuesta de IA:', aiResponse); // Log para diagnóstico
       
-      let parsedResponse;
-      
-      // Simplificar el parsing, ya que la simulación devuelve JSON puro.
-      // Si se conecta a una IA real que devuelve markdown, esta lógica podría necesitar ser más robusta,
-      // o idealmente, el backend debería encargarse de entregar un JSON limpio.
-      try {
-        parsedResponse = JSON.parse(aiResponse);
-      } catch (err) {
-        const error = err as Error;
-        console.error('Error al parsear la respuesta de IA:', error.message);
-        throw new Error(`No se pudo analizar la respuesta de IA. Formato esperado: JSON. Respuesta recibida: "${aiResponse.substring(0, 100)}..."`);
-      }
+      const parsedResponse = aiResponse; // getAIRecommendations now returns parsed object directly
 
       // Validar estructura del JSON
       if (!parsedResponse || 
@@ -121,7 +105,7 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
     } catch (err) {
       const error = err as Error;
       console.error('Error generando sugerencias:', error);
-      alert(`Error al generar sugerencias: ${error.message}\n\nPor favor verifica:\n1. Que el cargo esté bien escrito\n2. Que la conexión a internet funcione\n3. Intenta nuevamente más tarde`);
+      addToast(`Error al generar sugerencias: ${error.message}. Por favor verifica: 1. Que el cargo esté bien escrito. 2. Que la conexión a internet funcione. 3. Intenta nuevamente más tarde.`, 'error');
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -181,8 +165,101 @@ const JobPositionForm: React.FC<JobPositionFormProps> = ({ initialData, onSubmit
             )}
           </div>
 
-          {/* Resto del formulario... */}
-          {/* (Mantener el resto del JSX igual) */}
+          {/* Tareas Principales */}
+          <div>
+            <label htmlFor="tasks" className="block text-sm font-medium text-gray-700 mb-1">
+              Tareas Principales
+            </label>
+            <textarea
+              id="tasks"
+              name="tasks"
+              value={formData.tasks}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Describe las tareas principales del cargo..."
+            ></textarea>
+          </div>
+
+          {/* Ambiente de Trabajo */}
+          <div>
+            <label htmlFor="environment" className="block text-sm font-medium text-gray-700 mb-1">
+              Ambiente de Trabajo
+            </label>
+            <textarea
+              id="environment"
+              name="environment"
+              value={formData.environment}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Describe el ambiente de trabajo..."
+            ></textarea>
+          </div>
+
+          {/* Equipos, Maquinarias y Herramientas */}
+          <div>
+            <label htmlFor="equipment" className="block text-sm font-medium text-gray-700 mb-1">
+              Equipos, Maquinarias y Herramientas
+            </label>
+            <textarea
+              id="equipment"
+              name="equipment"
+              value={formData.equipment}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Lista los equipos, maquinarias y herramientas..."
+            ></textarea>
+          </div>
+
+          {/* Materiales y Sustancias */}
+          <div>
+            <label htmlFor="materials" className="block text-sm font-medium text-gray-700 mb-1">
+              Materiales y Sustancias
+            </label>
+            <textarea
+              id="materials"
+              name="materials"
+              value={formData.materials}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Lista los materiales y sustancias..."
+            ></textarea>
+          </div>
+
+          {/* Condiciones Especiales */}
+          <div>
+            <label htmlFor="specialConditions" className="block text-sm font-medium text-gray-700 mb-1">
+              Condiciones Especiales
+            </label>
+            <textarea
+              id="specialConditions"
+              name="specialConditions"
+              value={formData.specialConditions}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Describe cualquier condición especial..."
+            ></textarea>
+          </div>
+
+          {/* Información Adicional */}
+          <div>
+            <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-700 mb-1">
+              Información Adicional
+            </label>
+            <textarea
+              id="additionalInfo"
+              name="additionalInfo"
+              value={formData.additionalInfo}
+              onChange={handleChange}
+              rows={4}
+              className="block w-full p-3 text-base border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Añade cualquier información adicional relevante..."
+            ></textarea>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row justify-between gap-3 pt-6">
