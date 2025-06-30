@@ -8,11 +8,38 @@ interface LoginPopupProps {
 const LoginPopup: React.FC<LoginPopupProps> = ({ onClose, onSubmit }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+
+  const validateEmail = (emailToValidate: string): boolean => {
+    if (!emailToValidate) {
+      setEmailError('El correo electrónico es obligatorio.');
+      return false;
+    }
+    // Basic email regex, consider a more robust one if needed
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailToValidate)) {
+      setEmailError('Por favor, introduce un correo electrónico válido.');
+      return false;
+    }
+    setEmailError('');
+    return true;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ name, email });
+    if (validateEmail(email)) {
+      onSubmit({ name, email });
+    }
   };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    if (emailError) { // Clear error message as user types
+      validateEmail(newEmail);
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
@@ -39,11 +66,13 @@ const LoginPopup: React.FC<LoginPopupProps> = ({ onClose, onSubmit }) => {
             <input
               type="email"
               id="email"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+              className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${emailError ? 'border-red-500' : ''}`}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
+              onBlur={() => validateEmail(email)} // Validate on blur
               required
             />
+            {emailError && <p className="text-red-500 text-xs italic mt-1">{emailError}</p>}
           </div>
           <div className="flex items-center justify-between">
             <button
