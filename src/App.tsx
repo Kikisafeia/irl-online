@@ -8,7 +8,6 @@ import { CompanyInfo, JobInfo } from './types';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
-  console.log('App component rendered'); // Keep this log for debugging
   const [showLoginPopup, setShowLoginPopup] = useState(true); // Estado para controlar la visibilidad del popup
   const [step, setStep] = useState(1);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
@@ -65,8 +64,14 @@ function App() {
 
   const handleLoginSubmit = async (data: { name: string; email: string }) => {
     console.log('Datos de inicio de sesión:', data);
+    const webhookUrl = import.meta.env.VITE_MAKE_WEBHOOK_URL;
+    if (!webhookUrl) {
+      console.error('Error: VITE_MAKE_WEBHOOK_URL no está configurada.');
+      // Optionally: show a message to the user
+      return;
+    }
     try {
-      const response = await fetch('https://hook.eu2.make.com/u5yd1vi8tgpncf57blhrroz5uhdy4djr', {
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
